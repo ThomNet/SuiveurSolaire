@@ -1,0 +1,183 @@
+import network
+import socket
+import os
+import machine
+from machine import Pin, PWM, ADC
+
+motL = PWM(Pin(23), freq=3000, duty=0)
+motR = PWM(Pin(22), freq=3000, duty=0)
+motU = Pin(25, Pin.OUT)
+motD = Pin(26, Pin.OUT)
+cL = ADC(Pin(36))
+cR = ADC(Pin(39))
+cU = ADC(Pin(34))
+cD = ADC(Pin(35))
+cL.atten(ADC.ATTN_11DB)
+cR.atten(ADC.ATTN_11DB)
+cU.atten(ADC.ATTN_11DB)
+cD.atten(ADC.ATTN_11DB)
+MaxHL = machine.Pin(27, machine.Pin.IN)
+MaxHR = machine.Pin(18, machine.Pin.IN)
+MaxVL = machine.Pin(12, machine.Pin.IN)
+MaxVR = machine.Pin(13, machine.Pin.IN)
+#BatVal = ADC(Pin(32))
+#PanVal = ADC(Pin(33))
+#BatVal.atten(ADC.ATTN_11DB)
+#PanVal.atten(ADC.ATTN_11DB)
+Man = Pin(21, Pin.OUT)
+Aut = Pin(19, Pin.OUT)
+up_on = bool()
+down_on = bool()
+left_on = bool()
+right_on = bool()
+manual = bool()
+auto = bool()
+left = bool()
+right = bool()
+up = bool()
+down = bool()
+Aut_V = bool()
+Man_V = bool(1)
+
+#________________________________________________________________________________________________________
+def SolarTrack():
+        if (cL.read() > (cR.read()+16)) and (cL.read() > 400) and not MaxHL.value():
+            motL.duty(662)
+        else:
+            motL.duty(0)
+
+        if (cR.read() > (cL.read()+16)) and (cR.read() > 400) and not MaxHR.value():
+            motR.duty(662)
+        else:
+            motR.duty(0)
+
+        if (cU.read() > (cD.read()+16)) and (cU.read() > 400) and not MaxVL.value():
+            motU.value(1)
+        else:
+            motU.value(0)
+
+        if (cD.read() > (cU.read()+16)) and (cD.read() > 400) and not MaxVR.value():
+            motD.value(1)
+        else:
+            motD.value(0)
+#________________________________________________________________________________________________________    
+ap = network.WLAN(network.AP_IF)
+ap.active(True)
+ap.config(essid='SolarStation', password='pswd1')
+
+with open("PRJV3.html", "r") as file:
+    html = file.read()
+
+with open("jquery.min.js", "r") as file:
+    jquery = file.read()
+
+def API():
+    global response, Aut_V, up_on, down_on, left_on, right_on, Man_V, Aut_V
+
+    if path == "/":
+        response = "HTTP/1.1 200 OK\nContent-Type: text/html\n\n" + html
+        return
+    if path == "/update":
+        response = "HTTP/1.1 200 OK\nContent-Type: application/json\n\n" + f'{{"bat_p": "{bat_p}", "pan_p": "{pan_p}"}}'
+        return
+    if path == "/get":
+        response = "HTTP/1.1 200 OK\nContent-Type: text\n\n" + jquery  
+        return    
+    if path == "/?auto=on":
+       response = "HTTP/1.1 200 OK\nContent-Type: text/html\n\n" + html
+       print('AUTO ON')
+       Aut_V = 1
+       Man_V = 0
+       Aut.value(1)
+       Man.value(0)
+       return
+    if path == "/?man=on":
+       response = "HTTP/1.1 200 OK\nContent-Type: text/html\n\n" + html
+       print('MAN ON')
+       Man_V = 1
+       Aut_V = 0
+       Aut.value(0)
+       Man.value(1)
+       return
+    if path == "/?up=on" and not up_on and Man_V and not down_on:
+       response = "HTTP/1.1 200 OK\nContent-Type: text/html\n\n" + html
+       print('UP ON')
+       up_on = 1
+       motU.value(1)
+       return
+    if path == "/?up=on" and up_on and Man_V:
+       response = "HTTP/1.1 200 OK\nContent-Type: text/html\n\n" + html
+       print('UP OFF')
+       up_on = 0
+       motU.value(0)
+       return
+    if path == "/?down=on" and not down_on and Man_V and not up_on:
+       response = "HTTP/1.1 200 OK\nContent-Type: text/html\n\n" + html
+       print('DOWN ON')
+       down_on = 1
+       motD.value(1)
+       return
+    if path == "/?down=on" and down_on and Man_V:
+       response = "HTTP/1.1 200 OK\nContent-Type: text/html\n\n" + html
+       print('DOWN OFF')
+       down_on = 0
+       motD.value(0)
+       return
+    if path == "/?left=on" and not left_on and Man_V and not right_on:
+       response = "HTTP/1.1 200 OK\nContent-Type: text/html\n\n" + html
+       print('LEFT ON')
+       left_on = 1
+       motL.duty(662)
+       return
+    if path == "/?left=on" and left_on and Man_V:
+       response = "HTTP/1.1 200 OK\nContent-Type: text/html\n\n" + html
+       print('LEFT OFF')
+       left_on = 0
+       motL.duty(0)
+       return
+    if path == "/?right=on" and not right_on and Man_V and not left_on:
+       response = "HTTP/1.1 200 OK\nContent-Type: text/html\n\n" + html
+       print('RIGHT ON')
+       right_on = 1
+       motR.duty(662)
+       return
+    if path == "/?right=on" and right_on and Man_V:
+       response = "HTTP/1.1 200 OK\nContent-Type: text/html\n\n" + html
+       print('RIGHT OFF')
+       right_on = 0
+       motR.duty(0)
+       return
+    if (path == "/?up=on" and down_on) or (path == "/?down=on" and up_on) or (path == "/?left=on" and right_on) or (path == "/?right=on" and left_on):
+       response = "HTTP/1.1 200 OK\nContent-Type: text/html\n\n" + html
+       return
+    if (path == "/?up=on" and Aut_V) or (path == "/?down=on" and Aut_V) or (path == "/?left=on" and Aut_V) or (path == "/?right=on" and Aut_V):
+       response = "HTTP/1.1 200 OK\nContent-Type: text/html\n\n" + html
+    
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.bind(('', 80))
+s.listen(5)
+s.setblocking(False)
+
+while True:
+  try:
+    conn, addr = s.accept()
+  except:
+    if Aut_V:
+       SolarTrack()
+  else:
+    #bat_p = ((BatVal.read() / 4095) * 100)
+    #pan_p = ((PanVal.read() / 4095) * 100)
+    bat_p = 85
+    pan_p = 0.0
+    conn.setblocking(True)
+    request = conn.recv(4096).decode("utf-8")
+    request_parts = request.split(" ")
+    if len(request_parts) >= 2:
+        path = request_parts[1]
+        API()
+        conn.sendall(response.encode("utf-8"))
+    conn.close()
+    
+    if Aut_V:
+        SolarTrack()
+    
